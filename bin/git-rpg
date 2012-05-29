@@ -70,8 +70,8 @@ class Rpg
 		if File.exists?(git_hook)
 			already_installed = false
 			File.open(git_hook, 'r') do |fh|
-				shebang = fh.readline.chomp 
-				already_installed = (shebang == "#!/bin/sh" || shebang == "#!/bin/bash") && fh.readline.chomp == "git rpg commit"
+				shebang = fh.gets.chomp 
+				already_installed = (shebang == "#!/bin/sh" || shebang == "#!/bin/bash") && fh.gets.chomp == "git rpg commit"
 			end
 			
 			if !already_installed 
