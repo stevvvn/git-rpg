@@ -84,8 +84,7 @@ class Rpg
 	end
 
 	def commit!
-		lvl = level
-		exp_gain = 0
+		start_level = level
 
 		if %x[git log -1] == %x[git log -2]
 			change = %x[git diff-tree --stat --root HEAD]
@@ -96,10 +95,11 @@ class Rpg
 		@exp += exp_gain = scan_number(change, /(\d+) files? changed/)    * highest_2d(@@exp_rolls[:files])      + 
 		                   scan_number(change, /(\d+) insertions?\(\+\)/) * highest_2d(@@exp_rolls[:insertions]) +
 				             scan_number(change, /(\d+) deletions?\(\-\)/)  * highest_2d(@@exp_rolls[:deletions])
+
 		conf_set('rpg.exp', @exp)
 		puts "You gain #{exp_gain} experience for your distinguished commit!\n"
-		if level > lvl
-			puts "\n\nLEVEL UP! You are now level #{level}\n"
+		for lvl in (start_level + 1)..level
+			puts "\nLEVEL UP! You are now level #{lvl}\n"
 			attr_list.each do |attr|
 				if (diff = highest_2d(@@attrs[attr]) - (@@attrs[attr]/3).floor) > 0
 					new = Integer(get_attr(attr)) + diff
