@@ -13,9 +13,8 @@ class Rpg
 		:pluck => 6,
 		:grits => 4
 	}
+	# Progress Quest (progressquest.com) class list by Grumdrig, used with permission
 	@@classes = [
-		'God Botherer',
-		
 		'Ur-Paladin',
 		'Voodoo Princess',
 		'Robot Monk',
@@ -35,9 +34,8 @@ class Rpg
 		'Birdrider',
 		'Vermineer'
 	]
+	# Progress Quest (progressquest.com) race list by Grumdrig, used with permission
 	@@races = [
-		'Wisconsinite',
-
 		'Half Orc',
 		'Half Man',
 		'Half Halfling',
@@ -128,6 +126,7 @@ class Rpg
 	end
 
 	def select_from_list(label, list)
+		puts "Progress Quest (progressquest.com) #{label} list by Grumdrig, used with permission"
 		list.each_with_index do |item, idx|
 			puts "#{idx + 1}: #{item}\n"
 		end
