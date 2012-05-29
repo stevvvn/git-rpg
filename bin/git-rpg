@@ -63,6 +63,31 @@ class Rpg
 		@exp = conf_get('rpg.exp', 0).to_i
 	end
 
+	def init
+		git_hook = %x[git rev-parse --show-toplevel].chomp + '/.git/hooks/post-commit'
+		if File.exists?(git_hook)
+			already_installed = false
+			File.open(git_hook, 'r') do |fh|
+				shebang = fh.readline.chomp 
+				already_installed = (shebang == "#!/bin/sh" || shebang == "#!/bin/bash") && fh.readline.chomp == "git rpg commit"
+			end
+			
+			if !already_installed 
+				puts "You already have a hook installed at #{git_hook}."
+				puts "I would hate to mess that up for a dumb game, so I haven't touched it.\n"
+				puts "You can add git-rpg to the existing hook by editing that file to invoke \"git rpg commit\""
+				return
+			end
+		else
+			File.open(git_hook, 'w') do |fh| 
+				fh.write("#!/bin/sh\ngit rpg commit\n")
+				fh.chmod(0700)
+			end
+			puts "Hook installed."
+		end
+		summary
+	end
+
 	def summary
 		puts "#{name}\n"
 
@@ -209,4 +234,6 @@ elsif ARGV[0] == 'reset'
 	rpg.reset!
 elsif ARGV[0] == 'commit'
 	rpg.commit!
+elsif ARGV[0] == 'init'
+	rpg.init
 end
