@@ -1,0 +1,213 @@
+#!/usr/bin/ruby
+
+class Rpg
+	@@exp_rolls = {
+		:files      => 20,
+		:insertions => 35,
+		:deletions  => 55
+	}
+	@@attrs = {
+		:hp    => 20,
+		:mp    => 20,
+		:moxie => 10,
+		:pluck => 6,
+		:grits => 4
+	}
+	@@classes = [
+		'God Botherer',
+		
+		'Ur-Paladin',
+		'Voodoo Princess',
+		'Robot Monk',
+		'Mu-Fu Monk',
+		'Mage Illusioner',
+		'Shiv-Knight',
+		'Inner Mason',
+		'Fighter/Organist',
+		'Puma Burgular',
+		'Runeloremaster',
+		'Hunter Strangler',
+		'Battle-Felon',
+		'Tickle-Mimic',
+		'Slow Poisoner',
+		'Bastard Lunatic',
+		'Lowling',
+		'Birdrider',
+		'Vermineer'
+	]
+	@@races = [
+		'Wisconsinite',
+
+		'Half Orc',
+		'Half Man',
+		'Half Halfling',
+		'Double Hobbit',
+		'Hob-Hobbit',
+		'Low Elf',
+		'Dung Elf',
+		'Talking Pony',
+		'Gyrognome',
+		'Lesser Dwarf',
+		'Crested Dwarf',
+		'Eel Man',
+		'Panda Man',
+		'Trans-Kobold',
+		'Enchanted Motorcycle',
+		'Will o\' the Wisp',
+		'Battle-Finch',
+		'Double Wookiee',
+		'Skraeling',
+		'Demicanadian',
+		'Land Squid'	
+	]
+
+	def initialize 
+		@exp = conf_get('rpg.exp', 0).to_i
+	end
+
+	def summary
+		puts "#{name}\n"
+
+		puts "Level #{level} #{race} #{player_class} (#{@exp}/#{next_level_exp} xp)\n"
+		attrs = []
+		attr_list.each do |attr|
+			puts "\t#{attr}: #{get_attr(attr)}\n"
+		end
+	end
+
+	def reset!
+		puts "Really clear git-rpg data? [N/y]\n"
+		if STDIN.gets.chomp.downcase == 'y'
+			%x[git config --remove-section rpg]
+			puts 'Done!'
+		else
+			puts 'Skipped.'
+		end
+	end
+
+	def commit!
+		lvl = level
+		exp_gain = 0
+
+		if %x[git log -1] == %x[git log -2]
+			change = %x[git diff-tree --stat --root HEAD]
+		else
+			change = %x[git diff --stat HEAD^ HEAD]
+		end
+		
+		@exp += exp_gain = scan_number(change, /(\d+) files? changed/)    * highest_2d(@@exp_rolls[:files])      + 
+		                   scan_number(change, /(\d+) insertions?\(\+\)/) * highest_2d(@@exp_rolls[:insertions]) +
+				             scan_number(change, /(\d+) deletions?\(\-\)/)  * highest_2d(@@exp_rolls[:deletions])
+		conf_set('rpg.exp', @exp)
+		puts "You gain #{exp_gain} experience for your distinguished commit!\n"
+		if level > lvl
+			puts "\n\nLEVEL UP! You are now level #{level}\n"
+			attr_list.each do |attr|
+				if (diff = highest_2d(@@attrs[attr]) - (@@attrs[attr]/3).floor) > 0
+					new = Integer(get_attr(attr)) + diff
+					puts "\t+#{diff} #{attr} (#{new})"
+					conf_set("rpg.#{attr.to_s}", new)
+				end
+			end
+			puts "\n\n"
+		end
+	end
+
+	private
+
+	def attr_list
+		@@attrs.keys.sort do |a, b|
+			len_diff = a.to_s.length <=> b.to_s.length
+			len_diff == 0 ? a.to_s <=> b.to_s : len_diff	
+		end
+	end
+
+	def scan_number(str, pattern)
+		num = str.scan(pattern)
+		return Integer(num.length == 1 ? num[0][0] : 0)
+	end
+
+	def select_from_list(label, list)
+		list.each_with_index do |item, idx|
+			puts "#{idx + 1}: #{item}\n"
+		end
+		while true
+			puts "\nSelect #{label} > "
+			num = STDIN.gets.chomp
+			if num.match(/^\d+$/) && (num = Integer(num)) > 0 && num <= list.length
+				rv = list[num - 1]
+				conf_set("rpg.#{label}", rv)
+				return rv
+			end
+		end
+	end
+
+	def name
+		if (rpgname = conf_get('rpg.name'))
+			return rpgname
+		end
+
+		nm = conf_get('user.name')
+		while true
+			puts "\nCharacter name#{nm ? " (#{nm})" : ''}> "
+			rpgname = STDIN.gets.chomp
+			if rpgname == ''
+				rpgname = name
+			end
+			if rpgname != ''
+				conf_set('rpg.name', rpgname)
+				return rpgname
+			end
+		end
+	end
+
+	def race
+		conf_get('rpg.race') || select_from_list('race', @@races)
+	end
+
+	def player_class 
+		conf_get('rpg.class') || select_from_list('class', @@classes)
+	end
+
+	def get_attr(attr)
+		conf_get("rpg.#{attr.to_s}", highest_2d(@@attrs[attr]))
+	end
+
+	def highest_2d(n)
+		[1 + rand(n), 1 + rand(n)].max
+	end
+
+	def level
+		((1+Math.sqrt(@exp/125 + 1))/2).floor
+	end
+
+	def next_level_exp
+		lvl = level
+		500 * lvl * (lvl + 1)
+	end
+
+	def conf_get(term, default = nil)
+		rv = %x[git config --get #{term}].chomp
+		if rv == '' 
+			rv = default
+			if rv != nil
+				conf_set(term, default)
+			end
+		end
+		rv
+	end
+
+	def conf_set(term, val)
+		%x[git config --unset #{term}]
+		%x[git config --add #{term} '#{val.to_s.gsub('\'', '\\\'')}']
+	end
+end
+
+rpg = Rpg.new
+if ARGV.length == 0
+	rpg.summary
+elsif ARGV[0] == 'reset'
+	rpg.reset!
+elsif ARGV[0] == 'commit'
+	rpg.commit!
+end
