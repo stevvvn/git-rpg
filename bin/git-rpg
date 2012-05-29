@@ -1,17 +1,19 @@
 #!/usr/bin/ruby
 
 class Rpg
+	# Maximum exp gain per file, insertion, deletion
 	@@exp_rolls = {
 		:files      => 20,
 		:insertions => 35,
 		:deletions  => 55
 	}
+	# Maximum stat gain per level
 	@@attrs = {
 		:hp    => 20,
 		:mp    => 20,
 		:moxie => 10,
 		:pluck => 6,
-		:grits => 4
+		:grit  => 4
 	}
 	# Progress Quest (progressquest.com) class list by Grumdrig, used with permission
 	@@classes = [

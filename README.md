@@ -16,4 +16,4 @@ Use
 
 * Use "git rpg" to see your character sheet
 * Commit things normally to gain experience, levels, and hopefully something more interesting like skills or equipment one of these days.
-
+* Use "git rpg reset" to clear all data in your git settings related to the game.
