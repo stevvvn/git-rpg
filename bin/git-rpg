@@ -178,7 +178,7 @@ class Rpg
 			puts "\nCharacter name#{nm ? " (#{nm})" : ''}> "
 			rpgname = STDIN.gets.chomp
 			if rpgname == ''
-				rpgname = name
+				rpgname = nm
 			end
 			if rpgname != ''
 				conf_set('rpg.name', rpgname)
