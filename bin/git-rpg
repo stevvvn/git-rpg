@@ -61,8 +61,11 @@ class Rpg
 		'Land Squid'	
 	]
 
+	attr_writer :global, :local
+
 	def initialize 
-		@exp = conf_get('rpg.exp', 0).to_i
+		@global = false
+		@local  = false
 	end
 
 	def init
@@ -93,52 +96,72 @@ class Rpg
 	def summary
 		puts "#{name}\n"
 
-		puts "Level #{level} #{race} #{player_class} (#{@exp}/#{next_level_exp} xp)\n"
+		puts "Level #{level} #{race} #{player_class} (#{exp}/#{next_level_exp} xp)\n"
 		attrs = []
 		attr_list.each do |attr|
 			puts "\t#{attr}: #{get_attr(attr)}\n"
 		end
 	end
 
-	def reset!
+	def reset
 		puts "Really clear git-rpg data? [N/y]\n"
 		if STDIN.gets.chomp.downcase == 'y'
-			%x[git config --remove-section rpg]
+			if (@global)
+				%x[git config --global --remove-section rpg]
+			else
+				%x[git config --remove-section rpg]
+			end
 			puts 'Done!'
 		else
 			puts 'Skipped.'
 		end
 	end
 
-	def commit!
-		start_level = level
-
+	def commit		
 		if %x[git log -1] == %x[git log -2]
 			change = %x[git diff-tree --stat --root HEAD]
 		else
 			change = %x[git diff --stat HEAD^ HEAD]
 		end
-		
-		@exp += exp_gain = scan_number(change, /(\d+) files? changed/)    * highest_2d(@@exp_rolls[:files])      + 
-		                   scan_number(change, /(\d+) insertions?\(\+\)/) * highest_2d(@@exp_rolls[:insertions]) +
-				             scan_number(change, /(\d+) deletions?\(\-\)/)  * highest_2d(@@exp_rolls[:deletions])
 
-		conf_set('rpg.exp', @exp)
-		puts "You gain #{exp_gain} experience for your distinguished commit!\n"
-		for lvl in (start_level + 1)..level
-			puts "\nLEVEL UP! You are now level #{lvl}\n"
-			attr_list.each do |attr|
-				if (diff = highest_2d(@@attrs[attr]) - (@@attrs[attr]/3).floor) > 0
-					new = Integer(get_attr(attr)) + diff
-					puts "\t+#{diff} #{attr} (#{new})"
-					conf_set("rpg.#{attr.to_s}", new)
-				end
+		exp_gain = scan_number(change, /(\d+) files? changed/)    * highest_2d(@@exp_rolls[:files])      + 
+		           scan_number(change, /(\d+) insertions?\(\+\)/) * highest_2d(@@exp_rolls[:insertions]) +
+		           scan_number(change, /(\d+) deletions?\(\-\)/)  * highest_2d(@@exp_rolls[:deletions])
+
+		['global', 'local'].each do |scope|	
+			if (scope == 'global')
+				@global = true
+				@local  = false
+			else
+				@global = false
+				@local  = true
 			end
-			puts "\n\n"
+
+			next unless (char_name = conf_get('rpg.name', nil))
+
+			start_level = level
+
+			conf_set('rpg.exp', exp + exp_gain)
+			puts "#{char_name} gains #{exp_gain} experience for this distinguished commit!\n"
+			for lvl in (start_level + 1)..level
+				puts "\nLEVEL UP! #{char_name} is now level #{lvl}\n"
+				attr_list.each do |attr|
+					if (diff = highest_2d(@@attrs[attr]) - (@@attrs[attr]/3).floor) > 0
+						new = Integer(get_attr(attr)) + diff
+						puts "\t+#{diff} #{attr} (#{new})"
+						conf_set("rpg.#{attr.to_s}", new)
+					end
+				end
+				puts "\n\n"
+			end
 		end
 	end
 
 	private
+
+	def exp
+		conf_get('rpg.exp', 0).to_i
+	end
 
 	def attr_list
 		@@attrs.keys.sort do |a, b|
@@ -204,7 +227,7 @@ class Rpg
 	end
 
 	def level
-		((1+Math.sqrt(@exp/125 + 1))/2).floor
+		((1+Math.sqrt(exp/125 + 1))/2).floor
 	end
 
 	def next_level_exp
@@ -213,29 +236,43 @@ class Rpg
 	end
 
 	def conf_get(term, default = nil)
-		rv = %x[git config --get #{term}].chomp
-		if rv == '' 
-			rv = default
-			if rv != nil
+		if (!@global)
+			rv = %x[git config --local --get #{term}].chomp
+			return rv if rv != ''
+			if (@local)
+				return nil if default == nil
 				conf_set(term, default)
+				return default
 			end
 		end
-		rv
+
+		rv = %x[git config --global --get #{term}].chomp
+		return rv if rv != ''
+		return nil if default == nil
+		conf_set(term, default)
+		default
 	end
 
 	def conf_set(term, val)
-		%x[git config --unset #{term}]
-		%x[git config --add #{term} '#{val.to_s.gsub('\'', '\\\'')}']
+		if (@global)
+			%x[git config --global --unset #{term}]
+			%x[git config --global --add #{term} '#{val.to_s.gsub('\'', '\\\'')}']
+		else
+			%x[git config --local --unset #{term}]
+			%x[git config --local --add #{term} '#{val.to_s.gsub('\'', '\\\'')}']
+		end
 	end
 end
 
 rpg = Rpg.new
-if ARGV.length == 0
-	rpg.summary
-elsif ARGV[0] == 'reset'
-	rpg.reset!
-elsif ARGV[0] == 'commit'
-	rpg.commit!
-elsif ARGV[0] == 'init'
-	rpg.init
+cmd = 'summary'
+ARGV.each do |arg|
+	if ['reset', 'commit', 'init'].include?(arg)
+		cmd = arg 
+	elsif arg == '--global'
+		rpg.global = true
+	elsif arg == '--local'
+		rpg.local = true
+	end
 end
+rpg.send(cmd)
