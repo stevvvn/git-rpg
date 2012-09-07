@@ -61,8 +61,10 @@ class Rpg
 		'Land Squid'	
 	]
 
+	attr_writer :global
+
 	def initialize 
-		@exp = conf_get('rpg.exp', 0).to_i
+		@global = false
 	end
 
 	def init
@@ -93,7 +95,7 @@ class Rpg
 	def summary
 		puts "#{name}\n"
 
-		puts "Level #{level} #{race} #{player_class} (#{@exp}/#{next_level_exp} xp)\n"
+		puts "Level #{level} #{race} #{player_class} (#{exp}/#{next_level_exp} xp)\n"
 		attrs = []
 		attr_list.each do |attr|
 			puts "\t#{attr}: #{get_attr(attr)}\n"
@@ -123,7 +125,7 @@ class Rpg
 		                   scan_number(change, /(\d+) insertions?\(\+\)/) * highest_2d(@@exp_rolls[:insertions]) +
 				             scan_number(change, /(\d+) deletions?\(\-\)/)  * highest_2d(@@exp_rolls[:deletions])
 
-		conf_set('rpg.exp', @exp)
+		conf_set('rpg.exp', exp)
 		puts "You gain #{exp_gain} experience for your distinguished commit!\n"
 		for lvl in (start_level + 1)..level
 			puts "\nLEVEL UP! You are now level #{lvl}\n"
@@ -139,6 +141,10 @@ class Rpg
 	end
 
 	private
+
+	def exp
+		conf_get('rpg.exp', 0).to_i
+	end
 
 	def attr_list
 		@@attrs.keys.sort do |a, b|
@@ -204,7 +210,7 @@ class Rpg
 	end
 
 	def level
-		((1+Math.sqrt(@exp/125 + 1))/2).floor
+		((1+Math.sqrt(exp/125 + 1))/2).floor
 	end
 
 	def next_level_exp
@@ -213,29 +219,39 @@ class Rpg
 	end
 
 	def conf_get(term, default = nil)
-		rv = %x[git config --get #{term}].chomp
-		if rv == '' 
-			rv = default
-			if rv != nil
-				conf_set(term, default)
-			end
+		if (!@global)
+			rv = %x[git config --get #{term}].chomp
+			return rv if rv != ''
 		end
-		rv
+		rv = %x[git config --global --get #{term}].chomp
+		return rv if rv != ''
+		return nil if default == nil
+		conf_set(term, default)
+		default
 	end
 
 	def conf_set(term, val)
-		%x[git config --unset #{term}]
-		%x[git config --add #{term} '#{val.to_s.gsub('\'', '\\\'')}']
+		if (@global)
+			%x[git config --global --unset #{term}]
+			%x[git config --global --add #{term} '#{val.to_s.gsub('\'', '\\\'')}']
+		else
+			%x[git config --unset #{term}]
+			%x[git config --add #{term} '#{val.to_s.gsub('\'', '\\\'')}']
+		end
 	end
 end
 
 rpg = Rpg.new
-if ARGV.length == 0
-	rpg.summary
-elsif ARGV[0] == 'reset'
-	rpg.reset!
-elsif ARGV[0] == 'commit'
-	rpg.commit!
-elsif ARGV[0] == 'init'
-	rpg.init
+cmd = 'summary'
+ARGV.each do |arg|
+	if arg == 'reset'
+		cmd = 'reset!'
+	elsif arg == 'commit'
+		cmd = 'commit!'
+	elsif arg == 'init'
+		cmd = 'init'
+	elsif arg == '--global'
+		rpg.global = true
+	end
 end
+rpg.send(cmd)
