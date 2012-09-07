@@ -61,10 +61,11 @@ class Rpg
 		'Land Squid'	
 	]
 
-	attr_writer :global
+	attr_writer :global, :local
 
 	def initialize 
 		@global = false
+		@local  = false
 	end
 
 	def init
@@ -102,7 +103,7 @@ class Rpg
 		end
 	end
 
-	def reset!
+	def reset
 		puts "Really clear git-rpg data? [N/y]\n"
 		if STDIN.gets.chomp.downcase == 'y'
 			%x[git config --remove-section rpg]
@@ -112,31 +113,43 @@ class Rpg
 		end
 	end
 
-	def commit!
-		start_level = level
-
+	def commit		
 		if %x[git log -1] == %x[git log -2]
 			change = %x[git diff-tree --stat --root HEAD]
 		else
 			change = %x[git diff --stat HEAD^ HEAD]
 		end
-		
+
 		exp_gain = scan_number(change, /(\d+) files? changed/)    * highest_2d(@@exp_rolls[:files])      + 
 		           scan_number(change, /(\d+) insertions?\(\+\)/) * highest_2d(@@exp_rolls[:insertions]) +
 		           scan_number(change, /(\d+) deletions?\(\-\)/)  * highest_2d(@@exp_rolls[:deletions])
 
-		conf_set('rpg.exp', exp + exp_gain)
-		puts "You gain #{exp_gain} experience for your distinguished commit!\n"
-		for lvl in (start_level + 1)..level
-			puts "\nLEVEL UP! You are now level #{lvl}\n"
-			attr_list.each do |attr|
-				if (diff = highest_2d(@@attrs[attr]) - (@@attrs[attr]/3).floor) > 0
-					new = Integer(get_attr(attr)) + diff
-					puts "\t+#{diff} #{attr} (#{new})"
-					conf_set("rpg.#{attr.to_s}", new)
-				end
+		['global', 'local'].each do |scope|	
+			if (scope == 'global')
+				@global = true
+				@local  = false
+			else
+				@global = false
+				@local  = true
 			end
-			puts "\n\n"
+
+			next unless (char_name = conf_get('rpg.name', nil))
+
+			start_level = level
+
+			conf_set('rpg.exp', exp + exp_gain)
+			puts "#{char_name} gains #{exp_gain} experience for this distinguished commit!\n"
+			for lvl in (start_level + 1)..level
+				puts "\nLEVEL UP! #{char_name} is now level #{lvl}\n"
+				attr_list.each do |attr|
+					if (diff = highest_2d(@@attrs[attr]) - (@@attrs[attr]/3).floor) > 0
+						new = Integer(get_attr(attr)) + diff
+						puts "\t+#{diff} #{attr} (#{new})"
+						conf_set("rpg.#{attr.to_s}", new)
+					end
+				end
+				puts "\n\n"
+			end
 		end
 	end
 
@@ -220,9 +233,15 @@ class Rpg
 
 	def conf_get(term, default = nil)
 		if (!@global)
-			rv = %x[git config --get #{term}].chomp
+			rv = %x[git config --local --get #{term}].chomp
 			return rv if rv != ''
+			if (@local)
+				return nil if default == nil
+				conf_set(term, default)
+				return default
+			end
 		end
+
 		rv = %x[git config --global --get #{term}].chomp
 		return rv if rv != ''
 		return nil if default == nil
@@ -235,8 +254,8 @@ class Rpg
 			%x[git config --global --unset #{term}]
 			%x[git config --global --add #{term} '#{val.to_s.gsub('\'', '\\\'')}']
 		else
-			%x[git config --unset #{term}]
-			%x[git config --add #{term} '#{val.to_s.gsub('\'', '\\\'')}']
+			%x[git config --local --unset #{term}]
+			%x[git config --local --add #{term} '#{val.to_s.gsub('\'', '\\\'')}']
 		end
 	end
 end
@@ -244,14 +263,12 @@ end
 rpg = Rpg.new
 cmd = 'summary'
 ARGV.each do |arg|
-	if arg == 'reset'
-		cmd = 'reset!'
-	elsif arg == 'commit'
-		cmd = 'commit!'
-	elsif arg == 'init'
-		cmd = 'init'
+	if ['reset', 'commit', 'init'].include?(arg)
+		cmd = arg 
 	elsif arg == '--global'
 		rpg.global = true
+	elsif arg == '--local'
+		rpg.local = true
 	end
 end
 rpg.send(cmd)
