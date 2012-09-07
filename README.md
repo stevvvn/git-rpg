@@ -11,7 +11,8 @@ Installation
 * After that, in the git repo(s) you wish to use, run "git rpg init"
 	* If you have an existing post-commit hook, you'll have to edit it yourself so that it runs "git rpg commit" in addition to whatever it did before
 * If you wish to have one character for all the repos you use on a system, run "git rpg init --global"
-* Conversely, if you have configured a global character and you would also like one that is local to a repo, run "git rpg init --local" (both characters will receive experience for commits)
+* You must still run "git rpg init" in every repo you would like to use so the hook can be installed
+* If you have configured a global character and you would also like one that is local to a repo, run "git rpg init --local" (both characters will receive experience for commits)
 
 Use
 ---
